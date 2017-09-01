@@ -16,8 +16,8 @@
 .end_macro
 
 .macro square(%d, %n)
-	add	$a0, $zero, %n
-	mul	%d, $a0, $a0
+	add	%d, $zero, %n
+	mul	%d, %d, %d
 .end_macro
 
 .macro exit
