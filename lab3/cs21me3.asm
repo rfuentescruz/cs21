@@ -68,28 +68,26 @@
 	sb	$t9, 12($t8)		# Store it in N + 3
 .end_macro
 
-.macro reduce_array(%sum, %addr, %x, %y, %n)
-	get_effective_word_addr($t8, %addr, %x)		# Get address of int at index X -> $t3
+.macro reduce_array(%addr, %x, %y, %n)
+	get_effective_word_addr($t8, %addr, %x)		# Get address of int at index X
 	lw	$t4, ($t8)				# Load int at index X -> $t4
 
 	get_effective_word_addr($t8, %addr, %y)		# Get address of int at index Y
 	lw	$t5, ($t8)				# Load int at index Y -> $t5
 
-	get_effective_word_addr($t8, %addr, %n)		# Get address of the end of array (n = 6)
-	addu	%sum, $t4, $t5				# Add loaded ints
-	sb	%sum, ($t8)				# Store sum at end of array
+	addu	$t4, $t4, $t5				# Add loaded ints
+	get_effective_word_addr($t8, %addr, %n)		# Get address of the end of array (n)
+	sb	$t4, ($t8)				# Store sum at end of array
+
+	add	$a0, $zero, $t4
+	li	$v0, 1
+	syscall						# Print sum
+	la	$a0, nl
+	li	$v0, 4
+	syscall						# Print newline
 
 	shift_array(%addr, %y)				# Shift array down starting at index Y.
 	shift_array(%addr, %x)				# Shift array down starting at index X.
-.end_macro
-
-.macro print_int(%dest, %n)
-	add	$a0, $zero, %n
-	li	$v0, 1
-	syscall
-	li	$a0, 10
-	li	$v0, 11
-	syscall
 .end_macro
 
 .macro exit
@@ -97,11 +95,9 @@
 	syscall
 .end_macro
 
-
 main:
 	la	$s0, arr
 	la	$s1, pairs
-	la	$s2, digits
 
 	read_and_store_int($s0, 0)
 	read_and_store_int($s0, 1)
@@ -110,27 +106,24 @@ main:
 	read_and_store_int($s0, 4)
 
 	read_and_store_index_pair($s1, 0, $t1, $t2)	# Read index X and index Y -> $t1, $t2
-	reduce_array($t3, $s0, $t1, $t2, 5)
-	print_int($s2, $t3)
+	reduce_array($s0, $t1, $t2, 5)
 
 	read_and_store_index_pair($s1, 1, $t1, $t2)
-	reduce_array($t3, $s0, $t1, $t2, 4)
-	print_int($s2, $t3)
+	reduce_array($s0, $t1, $t2, 4)
 
 	read_and_store_index_pair($s1, 2, $t1, $t2)
-	reduce_array($t3, $s0, $t1, $t2, 3)
-	print_int($s2, $t3)
+	reduce_array($s0, $t1, $t2, 3)
 
 	read_and_store_index_pair($s1, 3, $t1, $t2)
-	reduce_array($t3, $s0, $t1, $t2, 2)
-	print_int($s2, $t3)
+	reduce_array($s0, $t1, $t2, 2)
 
 	print_index_pair($s1, 0)
 	print_index_pair($s1, 1)
 	print_index_pair($s1, 2)
 	print_index_pair($s1, 3)
 	exit
+
 .data
-digits:	.space 12	# Allocate memory for an 10 digit number (+ 2 for sign and a null byte)
 pairs:	.space 16	# Allocate memory for 4 null terminated 2-char strings
 arr:	.space 40	# Allocate memory for a 10-word array
+nl:	.asciiz "\n"
