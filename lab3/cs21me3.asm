@@ -51,43 +51,45 @@
 .end_macro
 
 .macro	shift_array(%addr, %offset)
-	# This is ugly, we assume that we own 2N - 1 space and that indeces
-	# after N are NULL.
+	do_shift(%addr, %offset, 0)	# Maybe shift index 1 to 0
+	do_shift(%addr, %offset, 1)	# Maybe shift index 2 to 1
+	do_shift(%addr, %offset, 2)	# Maybe shift index 3 to 2
+	do_shift(%addr, %offset, 3)	# Maybe shift index 4 to 3
+.end_macro
+
+.macro do_shift(%addr, %offset, %n)
 	get_effective_word_addr($t8, %addr, %offset)
+	get_effective_word_addr($t9, %addr, %n)		# Get the address of index we may want to shift
 
-	lw	$t9, 4($t8)		# Load N + 1
-	sb	$t9, ($t8)		# Store it in N
+	div	$t8, $t9, $t8				# Get the address of the new data source of this
+	mul	$t8, $t8, 4				# index %n.
+	add	$t7, $t9, $t8				# This will be pointing to the next integer if $t9 >= $t8
 
-	lw	$t9, 8($t8)		# Load N + 2
-	sb	$t9, 4($t8)		# Store it in N + 1
-
-	lw	$t9, 12($t8)		# Load N + 3
-	sb	$t9, 8($t8)		# Store it in N + 2
-
-	lw	$t9, 16($t8)		# Load N + 4
-	sb	$t9, 12($t8)		# Store it in N + 3
+	lw	$t8, ($t7)				# Load the integer
+	sb	$t8, ($t9)				# Store it in N
 .end_macro
 
 .macro reduce_array(%addr, %x, %y, %n)
-	get_effective_word_addr($t8, %addr, %x)		# Get address of int at index X
-	lw	$t4, ($t8)				# Load int at index X -> $t4
+	get_effective_word_addr($t0, %addr, %x)		# Get address of int at index X
+	lw	$t1, ($t0)				# Load int at index X -> $t1
 
-	get_effective_word_addr($t8, %addr, %y)		# Get address of int at index Y
-	lw	$t5, ($t8)				# Load int at index Y -> $t5
+	get_effective_word_addr($t0, %addr, %y)		# Get address of int at index Y
+	lw	$t2, ($t0)				# Load int at index Y -> $t2
 
-	addu	$t4, $t4, $t5				# Add loaded ints
-	get_effective_word_addr($t8, %addr, %n)		# Get address of the end of array (n)
-	sb	$t4, ($t8)				# Store sum at end of array
+	shift_array(%addr, %y)				# Shift array down starting at index Y.
+	shift_array(%addr, %x)				# Shift array down starting at index X.
 
-	add	$a0, $zero, $t4
+	addu	$t1, $t1, $t2				# Add loaded ints
+	get_effective_word_addr($t0, %addr, %n)		# Get address of the end of array (n)
+	sb	$t1, ($t0)				# Store sum at end of array
+
+	add	$a0, $zero, $t1
 	li	$v0, 1
 	syscall						# Print sum
 	la	$a0, nl
 	li	$v0, 4
 	syscall						# Print newline
 
-	shift_array(%addr, %y)				# Shift array down starting at index Y.
-	shift_array(%addr, %x)				# Shift array down starting at index X.
 .end_macro
 
 .macro exit
@@ -105,17 +107,17 @@ main:
 	read_and_store_int($s0, 3)
 	read_and_store_int($s0, 4)
 
-	read_and_store_index_pair($s1, 0, $t1, $t2)	# Read index X and index Y -> $t1, $t2
-	reduce_array($s0, $t1, $t2, 5)
+	read_and_store_index_pair($s1, 0, $s2, $s3)	# Read index X and index Y -> $s2, $s3
+	reduce_array($s0, $s2, $s3, 3)
 
-	read_and_store_index_pair($s1, 1, $t1, $t2)
-	reduce_array($s0, $t1, $t2, 4)
+	read_and_store_index_pair($s1, 1, $s2, $s3)
+	reduce_array($s0, $s2, $s3, 2)
 
-	read_and_store_index_pair($s1, 2, $t1, $t2)
-	reduce_array($s0, $t1, $t2, 3)
+	read_and_store_index_pair($s1, 2, $s2, $s3)
+	reduce_array($s0, $s2, $s3, 1)
 
-	read_and_store_index_pair($s1, 3, $t1, $t2)
-	reduce_array($s0, $t1, $t2, 2)
+	read_and_store_index_pair($s1, 3, $s2, $s3)
+	reduce_array($s0, $s2, $s3, 0)
 
 	print_index_pair($s1, 0)
 	print_index_pair($s1, 1)
@@ -125,5 +127,5 @@ main:
 
 .data
 pairs:	.space 16	# Allocate memory for 4 null terminated 2-char strings
-arr:	.space 40	# Allocate memory for a 10-word array
+arr:	.space 20	# Allocate memory for a 5-word array
 nl:	.asciiz "\n"
