@@ -1,3 +1,7 @@
+# CS 21 THWMVW -- S1 AY 17-18
+# Rolando Cruz -- 09/24/17
+# cs21me5.asm -- A program simulating a direct mapped cache
+
 .text
 .macro get(%dest, %label)
 	la	$t8, %label
@@ -173,5 +177,5 @@ num_tag_bits:		.word 0
 hit_rate:		.word 0
 miss_rate:		.word 0
 
-cache:		.space 1045696	# Theoretical max tag field size x cache blocks
-				# 32 x 32678
+cache:		.space 524288	# Theoretical max tag field size x cache blocks
+				# 32 x 16384
