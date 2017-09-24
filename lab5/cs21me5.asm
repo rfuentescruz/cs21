@@ -85,12 +85,9 @@ end:
 .macro set_valid_bit(%n, %value)
 	add	$t8, $zero, %value
 	bgtz	$t8, one
-	sll	%n, %n, 1		# If desired value is zero, clear the
-	srl	%n, %n, 1		#    last bit through shifting
+	andi	%n, %n, 0x7FFFFFFF	# Set value to 0
 	b	end
-one:	li	$t8, 1			# If desired value is one, create a
-	ror	$t8, $t8, 1		#    bitmask for the last bit
-	or	%n, $t8, %n		# Set value to 1
+one:	ori	%n, %n, 0x80000000	# Set value to 1
 end:
 .end_macro
 
