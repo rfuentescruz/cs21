@@ -29,11 +29,11 @@
 	print_char(%sep)
 .end_macro
 
-.macro  log2(%dest, %n)
+.macro log2(%dest, %n)
 	li	$t8, 1
 	li	%dest, 0
-loop:	bge	$t8, %n, end	# If the number is zero, end
-	sll	$t8, $t8, 1	# Divide by two through logical bit shift
+loop:	bge	$t8, %n, end	# If the number is , end
+	sll	$t8, $t8, 1	# Multiply by two through logical bit shift
 	add	%dest, %dest, 1
 	b loop
 end:
