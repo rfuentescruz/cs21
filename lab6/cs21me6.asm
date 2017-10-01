@@ -19,7 +19,6 @@ main:	li	$v0, 5
 fib:	subu	$sp, $sp, 8
 	sw	$ra, 4($sp)
 	sw	$s0, ($sp)
-	add	$s7, $s7, 1
 
 	move	$s0, $a0	# n = argument
 	bgtz	$s0, nbc	# if n > 0, not base case
