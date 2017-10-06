@@ -5,6 +5,20 @@
 	syscall
 .end_macro
 
+.macro call_swap(%gridA, %gridB, %rowA, %colA, %rowB, %colB)
+	addu	$a0, $zero, %gridA
+	addu	$a1, $zero, %gridB
+	add	$t8, $zero, %rowA
+	sb	$t8, -1($sp)
+	add	$t8, $zero, %colA
+	sb	$t8, -2($sp)
+	add	$t8, $zero, %rowB
+	sb	$t8, -3($sp)
+	add	$t8, $zero, %colB
+	sb	$t8, -4($sp)
+	jal	swap
+.end_macro
+
 main:	la	$a0, cube
 	li	$a1, 55
 	li	$v0, 8
@@ -58,7 +72,8 @@ action:	subu	$sp, $sp, 32
 	printc(' ')
 
 	move	$a0, $t0
-	jal	rotate
+	jal	get_index
+	call_swap($v0, $v0, 0, -1, 2, -1)
 
 	printc('\n')
 
@@ -140,7 +155,48 @@ lc:	lb	$t3, ($t1)
 	blt	$t0, 9, lc
 	jr	$ra
 
+swap:	subu	$sp, $sp, 8
+	lb	$t0, 7($sp)		# rowA
+	lb	$t1, 6($sp)		# colA
+	lb	$t2, 5($sp)		# rowB
+	lb	$t3, 4($sp)		# colB
+	sw	$ra, ($sp)
+
+	mul	$t4, $a0, 9
+	la	$t4, cube($t4)	# gridA
+
+	mul	$t5, $a1, 9
+	la	$t5, cube($t5)	# gridB
+
+	bltz	$t0, swap1
+	mul	$t0, $t0, 3
+	addu	$t4, $t4, $t0		# rowA of gridA
+
+	mul	$t2, $t2, 3
+	addu	$t5, $t5, $t2		# rowB of gridB
+
+	li	$t6, 3
+swap_loop:
+	lb	$t0, ($t4)
+	lb	$t1, ($t5)
+	sb	$t0, ($t5)
+	sb	$t1, ($t4)
+	sub	$t6, $t6, 1
+	add	$t4, $t4, 1
+	add	$t5, $t5, 1
+	bgtz	$t6, swap_loop
+
+	lw	$ra, ($sp)
+	addu	$sp, $sp, 8
+	jr	$ra
+
 .data
+scramble:	.word 0x10453252 # F
+		.word 0x02522042 # R
+		.word 0x12553043 # B
+		.word 0x00402250 # L
+		.word 0x03132333 # U
+		.word 0x05352515 # D
 cube:		.space 54
 		.align 2
 grid:		.space 9
