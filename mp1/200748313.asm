@@ -108,12 +108,14 @@ action:	subu	$sp, $sp, 32
 	sw	$ra, ($sp)
 
 	move	$s0, $a0
+	move	$s1, $a1
 
 	move	$a0, $s0
 	jal	get_index			# v = get_index($a0)
 	move	$s1, $v0			# $t0 = $a0
 
 	move	$a0, $s0
+	move	$a1, $s1
 	jal	rotate
 
 	mul	$t0, $s1, 4
@@ -153,12 +155,17 @@ scramble_loop:
 #
 # Params:
 #   $a0 - The uppercase character representing the move
+#   $a1 - Whether to rotate clockwise or counter clockwise
 ################################################################################
 rotate:					# rotate(face)
 	subu	$sp, $sp, 32
 	sw	$ra, 28($sp)
 	sw	$s0, 24($sp)
 	sw	$s1, 20($sp)
+	sw	$s2, 16($sp)
+
+	move	$s1, $a0
+	move	$s2, $a1
 
 	la	$s0, cube		# a = &cube
 	jal	get_index		# get_index(face)
@@ -170,29 +177,42 @@ rotate:					# rotate(face)
 	la	$a1, grid
 	jal	copy
 
-	la	$t1, grid		# g = &grid
-	li	$t2, 0			# i = 0
-lr1: 	lb	$t3, ($t1)		# c = *g
-	add	$t1, $t1, 1		# g++
-	rem	$t4, $t2, 3		# end_index = i % 3
-	add	$t4, $t4, 1		# end_index++
-	mul	$t4, $t4, 3		# end_index = end_index * 3
-	div	$t5, $t2, 3		# offset = i / 3
-	add	$t5, $t5, 1		# offset++
-	sub	$t4, $t4, $t5		# end_index -= offset
-	add	$t4, $s0, $t4		# end_address = &cube + end_index
-	sb	$t3, ($t4)		# *end_address = c
-	add	$t2, $t2, 1		# i++
-	blt	$t2, 9, lr1
+	la	$t0, grid
+	bnez	$s2, ccw_o
+	li	$t1, 2
+	li	$t2, -1
+	li	$t3, -1
+	b	rol1
+ccw_o:	li	$t1, 0
+	li	$t2, 1
+	li	$t3, 3
 
-	add	$t0, $s0, 9
-rl:	lb	$t1, ($s0)		# c = *cube
-	add	$s0, $s0, 1		# cube++
-	blt	$s0, $t0, rl		# if a < b, loop rl
+rol1:
+	bnez	$s2, ccw_i	
+	li	$t4, 0
+	li	$t5, 3
+	li	$t6, 9
+	b	ril1
+ccw_i:	li	$t4, 6
+	li	$t5, -3
+	li	$t6, -3
+ril1:
+	lb	$t7, ($t0)
+	add	$t8, $s0, $t4
+	add	$t8, $t8, $t1
+	sb	$t7, ($t8)
+
+	add	$t4, $t4, $t5
+	add	$t0, $t0, 1
+	bne	$t4, $t6, ril1
+
+	add	$t1, $t1, $t2
+	bne	$t1, $t3, rol1
 
 	lw	$ra, 28($sp)
 	lw	$s0, 24($sp)
 	lw	$s1, 20($sp)
+	lw	$s2, 16($sp)
 	addu	$sp, $sp, 32
 	jr	$ra
 
