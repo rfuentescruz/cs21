@@ -1,3 +1,7 @@
+# CS 21 THWMVW -- S1 AY 17-18
+# Rolando Cruz -- 10/12/17
+# 200748313.asm -- A Rubik's cube face solver
+
 .text
 .macro read_string(%label, %len)
 	la	$a0, %label
@@ -8,6 +12,11 @@
 
 .macro read_int(%reg)
 	li	$v0, 5
+	syscall
+	move	%reg, $v0
+.end_macro
+.macro readc(%reg)
+	li	$v0, 12
 	syscall
 	move	%reg, $v0
 .end_macro
@@ -36,32 +45,53 @@
 	jal	move_cell
 .end_macro
 
+.macro do_action(%action, %direction)
+	add	$a0, $zero, %action
+	add	$a1, $zero, %direction
+	jal	action
+.end_macro
+
 ################################################################################
 # main
 ################################################################################
-main:	read_string(cube, 55)
-	read_int($s0)
-	read_string(actions, 1001)
+main:
+	la	$t0, action_pointer
+	la	$t1, actions
+	sw	$t1, ($t0)
 
+	read_string(cube, 55)
+	read_int($s0)
+	beqz	$s0, free_mode
+
+	readc($s4)
+	move	$a0, $s4
+	jal	solve_corners
+	print_string(actions)
+	b	exit
+
+free_mode:
+	read_string(actions, 1001)
 	la	$s1, actions
-loop:	lb	$s2, ($s1)		# Load c
-	beqz	$s2, end		# if c == 0, end
-	beq	$s2, 10, end		# if c == '\n', end
+free_mode_loop:
+	lb	$s2, ($s1)		# Load c
+	beqz	$s2, free_mode_end	# if c == 0, free_mode_end
+	beq	$s2, 10, free_mode_end	# if c == '\n', free_mode_end
 
 	lb	$s3, 1($s1)		# Load c + 1
 	li	$a1, 1			# Set direction = clockwise initially
-	bne	$s3, '\'', next		# if (c + 1) != "'", do action immediately
+	bne	$s3, '\'', next_move	# if (c + 1) != "'", do action immediately
 	li	$a1, -1			# direction = counter-clockwise
 	add	$s1, $s1, 1		# Skip next char
-next:
+next_move:
 	move	$a0, $s2
 	jal	action			# action(c, direction)
 	add	$s1, $s1, 1
-	b	loop
+	b	free_mode_loop
 
-end:
+free_mode_end:
 	print_string(cube)
-	li	$v0, 10
+
+exit:	li	$v0, 10
 	syscall
 
 ################################################################################
@@ -74,17 +104,22 @@ end:
 action:	subu	$sp, $sp, 32
 	sw	$s0, 28($sp)
 	sw	$s1, 24($sp)
-	sw	$s2, 20($sp)
-	sw	$s3, 16($sp)
-	sw	$s4, 12($sp)
 	sw	$ra, ($sp)
 
 	move	$s0, $a0		# face = args[0]
 	move	$s1, $a1		# direction = args[1]
 
-	move	$a0, $s0
-	jal	get_index		# v = get_index(face)
-	move	$s4, $v0
+	lw	$t0, action_pointer
+	sb	$s0, ($t0)
+	add	$t0, $t0, 1
+	bgtz	$s1, action_flush
+	li	$t1, '\''
+	sb	$t1, ($t0)
+	add	$t0, $t0, 1
+action_flush:
+	sw	$t0, action_pointer
+
+	printc($s0)
 
 	beq	$s0, 'H', translate_h
 	beq	$s0, 'V', translate_v
@@ -136,11 +171,16 @@ face_rotate:
 	jal	rotate			# rotate(v)
 
 action_end:
+	bltz	$s1, ccw
+	printc(' ')
+	b	np
+ccw:	printc('\'')
+np:	printc(':')
+	printc(' ')
+	print_string(cube)
+	printc('\n')
 	lw	$s0, 28($sp)
 	lw	$s1, 24($sp)
-	lw	$s2, 20($sp)
-	lw	$s3, 16($sp)
-	lw	$s4, 12($sp)
 	lw	$ra, ($sp)
 	addu	$sp, $sp, 32
 	jr	$ra
@@ -181,9 +221,7 @@ clockwise:
 	add	$s2, $s2, 2
 
 rotate_loop:
-	move	$a0, $s2
-	move	$a1, $s3
-	jal	move_cell
+	call_move_cell($s2, $s3)
 
 	mul	$t0, $s1, 3		# Move row up or down
 	add	$s2, $s2, $t0
@@ -206,8 +244,8 @@ rotate_loop:
 	lw	$ra, 28($sp)
 	lw	$s0, 24($sp)
 	lw	$s1, 20($sp)
-	sw	$s2, 16($sp)
-	sw	$s3, 12($sp)
+	lw	$s2, 16($sp)
+	lw	$s3, 12($sp)
 	addu	$sp, $sp, 32
 	jr	$ra
 
@@ -293,6 +331,113 @@ move_cell:
 no_pair:
 	jr	$ra
 
+solve_corners:
+	subu	$sp, $sp, 32
+	sw	$s0, 28($sp)
+	sw	$s1, 24($sp)
+	sw	$s2, 20($sp)
+	sw	$s3, 16($sp)
+	sw	$ra, ($sp)
+
+	move	$s0, $a0
+
+	li	$s1, 4
+	li	$s3, 0
+solve_corner_loop:
+	li	$s2, 0
+
+	li	$t1, 44
+	lb	$t0, cube($t1)
+	beq	$s0, $t0, solve_corner_match
+
+	li	$t1, 15
+	lb	$t0, cube($t1)
+	beq	$s0, $t0, corner_case1
+
+	li	$t1, 8
+	lb	$t0, cube($t1)
+	beq	$s0, $t0, corner_case2
+
+	li	$t1, 47
+	lb	$t0, cube($t1)
+	beq	$s0, $t0, corner_case3
+
+	li	$t1, 2
+	lb	$t0, cube($t1)
+	beq	$s0, $t0, corner_case4
+
+	li	$t1, 9
+	lb	$t0, cube($t1)
+	beq	$s0, $t0, corner_case5
+
+	b	solve_corner_no_match
+
+corner_case1:
+	do_action('R', -1)
+	do_action('D', 1)
+	do_action('R', 1)
+	b	solve_corner_match
+
+corner_case2:
+	do_action('R', 1)
+	do_action('F', -1)
+	do_action('R', -1)
+	do_action('F', 1)
+	b	solve_corner_match
+
+corner_case3:
+	do_action('R', -1)
+	do_action('D', 1)
+	do_action('R', 1)
+	do_action('D', 1)
+	do_action('D', 1)
+	do_action('R', -1)
+	do_action('D', -1)
+	do_action('R', 1)
+	b	solve_corner_match
+
+corner_case4:
+	do_action('F', 1)
+	do_action('D', 1)
+	do_action('F', -1)
+	do_action('D', 1)
+	do_action('D', 1)
+	do_action('R', -1)
+	do_action('D', 1)
+	do_action('R', 1)
+	b	solve_corner_match
+corner_case5:
+	do_action('R', -1)
+	do_action('D', -1)
+	do_action('R', 1)
+	do_action('D', 1)
+	do_action('R', -1)
+	do_action('D', -1)
+	do_action('R', 1)
+
+solve_corner_match:
+	li	$s2, 1
+
+solve_corner_no_match:
+	bnez	$s2, solve_corner_next
+	bge	$s3, 4, solve_corner_next
+	do_action('D', 1)
+	add	$s3, $s3, 1
+	b	solve_corner_loop
+solve_corner_next:
+	li	$s3, 0
+	do_action('H', 1)
+	sub	$s1, $s1, 1
+	bgtz	$s1, solve_corner_loop
+
+	lw	$s0, 28($sp)
+	lw	$s1, 24($sp)
+	lw	$s2, 20($sp)
+	lw	$s3, 16($sp)
+	lw	$ra, ($sp)
+	addu	$sp, $sp, 32
+	jr	$ra
+
 .data
 turn_pairs:	.word 0x00001D2A   # ['0', '29', '42']
 		.word 0x00012BFF   # ['1', '43']
@@ -348,8 +493,7 @@ turn_pairs:	.word 0x00001D2A   # ['0', '29', '42']
 		.word 0x00331A21   # ['51', '26', '33']
 		.word 0x003419FF   # ['52', '25']
 		.word 0x00351118   # ['53', '17', '24']
-cube:		.space 54
-		.align 2
-grid:		.space 54
-		.align 2
-actions:	.space 1000
+cube:		.space 55
+grid:		.space 55
+action_pointer:	.word 0
+actions:	.space 1001
