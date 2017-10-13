@@ -65,7 +65,12 @@ main:
 
 	readc($s4)
 	move	$a0, $s4
+	jal	orient_cube
+	move	$a0, $s4
 	jal	solve_corners
+	move	$a0, $s4
+	jal	solve_cross
+
 	print_string(actions)
 	b	exit
 
@@ -119,7 +124,7 @@ action:	subu	$sp, $sp, 32
 action_flush:
 	sw	$t0, action_pointer
 
-	printc($s0)
+	# printc($s0)
 
 	beq	$s0, 'H', translate_h
 	beq	$s0, 'V', translate_v
@@ -171,14 +176,14 @@ face_rotate:
 	jal	rotate			# rotate(v)
 
 action_end:
-	bltz	$s1, ccw
-	printc(' ')
-	b	np
-ccw:	printc('\'')
-np:	printc(':')
-	printc(' ')
-	print_string(cube)
-	printc('\n')
+	# bltz	$s1, ccw
+# 	printc(' ')
+	# b	np
+# ccw:	printc('\'')
+# np:	printc(':')
+# 	printc(' ')
+# 	print_string(cube)
+# 	printc('\n')
 	lw	$s0, 28($sp)
 	lw	$s1, 24($sp)
 	lw	$ra, ($sp)
@@ -331,6 +336,39 @@ move_cell:
 no_pair:
 	jr	$ra
 
+orient_cube:
+	subu	$sp, $sp, 32
+	sw	$s0, 28($sp)
+	sw	$s0, 24($sp)
+	sw	$ra, ($sp)
+
+	move	$s0, $a0
+	li	$s1, 0
+orient_v_loop:
+	li	$t0, 40
+	lb	$t1, cube($t0)
+	beq	$t1, $s0, orient_end
+	do_action('V', 1)
+	addu	$s1, $s1, 1
+	blt	$s1, 4, orient_v_loop
+	li	$s1, 0
+
+	do_action('H', 1)
+orient_h_loop:
+	li	$t0, 40
+	lb	$t1, cube($t0)
+	beq	$t1, $s0, orient_end
+	do_action('V', 1)
+	addu	$s1, $s1, 1
+	blt	$s1, 4, orient_h_loop
+
+
+orient_end:
+	lw	$s0, 28($sp)
+	lw	$ra, ($sp)
+	addu	$sp, $sp, 32
+	jr	$ra
+
 solve_corners:
 	subu	$sp, $sp, 32
 	sw	$s0, 28($sp)
@@ -374,7 +412,7 @@ solve_corner_loop:
 
 corner_case1:
 	do_action('R', -1)
-	do_action('D', 1)
+	do_action('D', -1)
 	do_action('R', 1)
 	b	solve_corner_match
 
@@ -417,6 +455,7 @@ corner_case5:
 
 solve_corner_match:
 	li	$s2, 1
+	sub	$s1, $s1, 1
 
 solve_corner_no_match:
 	bnez	$s2, solve_corner_next
@@ -427,13 +466,121 @@ solve_corner_no_match:
 solve_corner_next:
 	li	$s3, 0
 	do_action('H', 1)
-	sub	$s1, $s1, 1
 	bgtz	$s1, solve_corner_loop
 
 	lw	$s0, 28($sp)
 	lw	$s1, 24($sp)
 	lw	$s2, 20($sp)
 	lw	$s3, 16($sp)
+	lw	$ra, ($sp)
+	addu	$sp, $sp, 32
+	jr	$ra
+
+solve_cross:
+	subu	$sp, $sp, 32
+	sw	$s0, 28($sp)
+	sw	$s1, 24($sp)
+	sw	$s2, 20($sp)
+	sw	$ra, ($sp)
+
+	move	$s0, $a0
+
+	li	$s1, 0
+solve_cross_loop:
+	li	$t1, 43
+	lb	$t0, cube($t1)
+	beq	$s0, $t0, solve_cross_skip
+
+	li	$t1, 46
+	lb	$t0, cube($t1)
+	beq	$s0, $t0, solve_cross_case1
+
+	li	$t1, 7
+	lb	$t0, cube($t1)
+	beq	$s0, $t0, solve_cross_case2
+
+	li	$t1, 12
+	lb	$t0, cube($t1)
+	beq	$s0, $t0, solve_cross_case3
+
+	li	$t1, 5
+	lb	$t0, cube($t1)
+	beq	$s0, $t0, solve_cross_case4
+
+	li	$t1, 1
+	lb	$t0, cube($t1)
+	beq	$s0, $t0, solve_cross_case5
+
+	b	solve_cross_next
+
+solve_cross_skip:
+	do_action('U', -1)
+	add	$s1, $s1, 1
+	bge	$s1, 4,	solve_cross_end
+	b	solve_cross_loop
+
+solve_cross_case1:
+	do_action('F', 1)
+	do_action('F', 1)
+	do_action('R', -1)
+	do_action('L', 1)
+	do_action('D', 1)
+	do_action('D', 1)
+	do_action('R', 1)
+	do_action('L', -1)
+	b	solve_cross_next
+
+solve_cross_case2:
+	do_action('R', -1)
+	do_action('L', 1)
+	do_action('D', 1)
+	do_action('R', 1)
+	do_action('L', -1)
+	do_action('F', -1)
+	b	solve_cross_next
+
+solve_cross_case3:
+	do_action('F', -1)
+	do_action('R', -1)
+	do_action('L', 1)
+	do_action('D', 1)
+	do_action('R', 1)
+	do_action('L', -1)
+	b	solve_cross_next
+
+solve_cross_case4:
+	do_action('U', -1)
+	do_action('R', 1)
+	do_action('F', 1)
+	do_action('B', -1)
+	do_action('D', -1)
+	do_action('F', -1)
+	do_action('B', 1)
+	b	solve_cross_next
+
+solve_cross_case5:
+	do_action('R', 1)
+	do_action('L', -1)
+	do_action('F', 1)
+	do_action('F', 1)
+	do_action('R', -1)
+	do_action('R', -1)
+	do_action('L', 1)
+	do_action('L', 1)
+	do_action('D', 1)
+	do_action('R', 1)
+	do_action('L', -1)
+	do_action('F', -1)
+	b	solve_cross_next
+
+solve_cross_next:
+	do_action('H', 1)
+	li	$s1, 0
+	b	solve_cross_loop
+
+solve_cross_end:
+	lw	$s0, 28($sp)
+	lw	$s1, 24($sp)
 	lw	$ra, ($sp)
 	addu	$sp, $sp, 32
 	jr	$ra
