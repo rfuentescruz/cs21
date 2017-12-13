@@ -1,8 +1,18 @@
 const int PIN_CLOCK = 13;
-const int PIN_DATA_OUT = 12;
-const int PIN_DATA_WRITE = 11;
-const int PIN_DATA_CLOCK = 10;
+
+const int PIN_LIGHTS_DATA_SHIFT = 12;
+const int PIN_LIGHTS_DATA_LATCH = 11;
+const int PIN_LIGHTS_DATA_OUT = 10;
+
 const int PIN_PX_CROSSING = 9;
+
+const int PIN_LED_DATA_SHIFT = 8;
+const int PIN_LED_DATA_LATCH = 7;
+const int PIN_LED_DATA_OUT = 6;
+
+const int PIN_SWITCHES_DATA_SHIFT = 5;
+const int PIN_SWITCHES_DATA_LATCH = 4;
+const int PIN_SWITCHES_DATA_IN = 3;
 
 const int CLOCK_CYCLE = 1000;
 const int CLOCK_DUTY_HIGH = 500;
@@ -30,9 +40,18 @@ int state, last_state, next_state;
 
 void setup() {
     Serial.begin(19200);
-    pinMode(PIN_DATA_WRITE, OUTPUT);
-    pinMode(PIN_DATA_OUT, OUTPUT);
-    pinMode(PIN_DATA_CLOCK, OUTPUT);
+    pinMode(PIN_LIGHTS_DATA_SHIFT, OUTPUT);
+    pinMode(PIN_LIGHTS_DATA_OUT, OUTPUT);
+    pinMode(PIN_LIGHTS_DATA_LATCH, OUTPUT);
+
+    pinMode(PIN_LED_DATA_SHIFT, OUTPUT);
+    pinMode(PIN_LED_DATA_OUT, OUTPUT);
+    pinMode(PIN_LED_DATA_LATCH, OUTPUT);
+
+    pinMode(PIN_SWITCHES_DATA_IN, INPUT);
+    pinMode(PIN_SWITCHES_DATA_LATCH, OUTPUT);
+    pinMode(PIN_SWITCHES_DATA_SHIFT, OUTPUT);
+
     pinMode(PIN_CLOCK, OUTPUT);
     pinMode(PIN_PX_CROSSING, INPUT);
 
@@ -53,6 +72,8 @@ void setup() {
     state = STATE_NS_GO;
     next_state = STATE_EW_GO;
     last_state = STATE_EW_GO;
+
+    digitalWrite(PIN_SWITCHES_DATA_LATCH, LOW);
 }
 
 void loop() {
@@ -70,6 +91,8 @@ void loop() {
 
     
     if (rising_edge) {
+        update_durations();
+        update_leds();
         if (!px_crossing && digitalRead(PIN_PX_CROSSING)) {
             Serial.print("PX Crossing!\n");
             px_crossing = true;
@@ -153,11 +176,110 @@ void loop() {
                 state = next_state;
             }
         }
-        digitalWrite(PIN_DATA_WRITE, LOW);
-        shiftOut(PIN_DATA_OUT, PIN_DATA_CLOCK, MSBFIRST, light_state);
-        digitalWrite(PIN_DATA_WRITE, HIGH);
+        digitalWrite(PIN_LIGHTS_DATA_LATCH, LOW);
+        shiftOut(PIN_LIGHTS_DATA_OUT, PIN_LIGHTS_DATA_SHIFT, MSBFIRST, light_state);
+        digitalWrite(PIN_LIGHTS_DATA_LATCH, HIGH);
         Serial.print("\n");
         Serial.print(light_state, BIN);
         Serial.print("\n");
     }
+}
+
+void update_leds() {
+    byte led = 0;
+    led = px_countdown << 4;
+    led |= px_duration;
+
+    digitalWrite(PIN_LED_DATA_LATCH, LOW);
+    shiftOut(PIN_LED_DATA_OUT, PIN_LED_DATA_SHIFT, MSBFIRST, led);
+    Serial.print("LEDs: ");
+    Serial.println(led, BIN);
+    
+    led = ew_duration << 4;
+    led |= ns_duration;
+
+    shiftOut(PIN_LED_DATA_OUT, PIN_LED_DATA_SHIFT, MSBFIRST, led);
+    digitalWrite(PIN_LED_DATA_LATCH, HIGH);
+}
+
+void update_durations() {
+    digitalWrite(PIN_SWITCHES_DATA_LATCH, HIGH);
+    // Account for propagation delay
+    delayMicroseconds(20);
+    digitalWrite(PIN_SWITCHES_DATA_LATCH, LOW);
+
+    byte switches = myShiftIn(
+        PIN_SWITCHES_DATA_IN,
+        PIN_SWITCHES_DATA_SHIFT
+    );
+    
+    if (switches & 1) {
+        ns_duration++;
+
+        if (ns_duration >= 10) {
+            ns_duration = 1;
+        }
+    }
+    
+    if (switches & 2) {
+        ns_duration--;
+        if (ns_duration <= 0) {
+            ns_duration = 9;
+        }
+    }
+
+    if (switches & 4) {
+        ew_duration++;
+        if (ew_duration >= 10) {
+            ew_duration = 1;
+        }
+    }
+
+    if (switches & 8) {
+        ew_duration--;
+        if (ew_duration <= 0) {
+            ew_duration = 9;
+        }
+    }
+
+    if (switches & 16) {
+        px_duration++;
+        if (px_duration >= 10) {
+            px_duration = 1;
+        }
+    }
+
+    if (switches & 32) {
+        px_duration--;
+        if (px_duration <= 0) {
+            px_duration = 9;
+        }
+    }
+
+    Serial.print("\n");
+}
+
+byte myShiftIn(int data_pin, int clock_pin) {
+    Serial.print("Switches: ");
+
+    int i;
+    int temp = 0;
+    int pinState;
+    byte data_in = 0;
+
+    for (i = 7; i >= 0; i--) {
+        digitalWrite(clock_pin, 0);
+        delayMicroseconds(0.2);
+        temp = digitalRead(data_pin);
+        if (temp) {
+            Serial.print("1");
+            data_in = data_in | (1 << i);
+        } else {
+            Serial.print("0");
+            pinState = 0;
+        }
+        digitalWrite(clock_pin, 1);
+    }
+    Serial.print("\n");
+    return data_in;
 }
